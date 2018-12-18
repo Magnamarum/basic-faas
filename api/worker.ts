@@ -1,8 +1,10 @@
+import { worker } from "cluster";
+
 var routerPort = process.env.ROUTERPORT || 5554;
 var zmq = require("zeromq");
 var router = zmq.socket("router");
 
-function main(identity: string, functionName: string) {
+export function start(identity: string, functionName: string) {
   const func = require(functionName);
   router.identity = identity;
   router.connect("tcp://broker:5554");
@@ -21,3 +23,4 @@ function main(identity: string, functionName: string) {
     console.log("incoming request: " + payload.toString("utf8"));
   });
 }
+

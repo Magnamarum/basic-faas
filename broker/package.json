@@ -1,7 +1,7 @@
 {
   "name": "broker",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "index.js",
   "license": "MIT",
   "scripts": {
     "prestart": "tsc",

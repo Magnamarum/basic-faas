@@ -1,5 +1,5 @@
 
- function echo (payload) {
+function echo (payload) {
     return payload;
 }
 

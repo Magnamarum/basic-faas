@@ -1,0 +1,16 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "prestart": "tsc",
+    "start": "node index.ts"
+  },
+  "dependencies": {
+    "zeromq": "^5.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^2.8.1"
+  }
+}

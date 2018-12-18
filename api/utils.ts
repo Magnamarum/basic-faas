@@ -1,9 +1,9 @@
 import * as del from 'del';
 import { Collection } from 'lokijs';
 
-const imageFilter = function (req, file, cb) {
+const functionFilter = function (req, file, cb) {
     // accept image only
-    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+    if (!file.originalname.match(/\.(zip|ts|js)$/)) {
         return cb(new Error('Only image files are allowed!'), false);
     }
     cb(null, true);
@@ -23,4 +23,4 @@ const cleanFolder = function (folderPath) {
     del.sync([`${folderPath}/**`, `!${folderPath}`]);
 };
 
-export { imageFilter, loadCollection, cleanFolder }
+export { functionFilter, loadCollection, cleanFolder }

@@ -1,0 +1,42 @@
+version: '3'
+services:
+  registry:
+    container_name: registry
+    image: registry:2
+    ports:
+      - "5000:5000"
+  broker:
+    container_name: broker
+    build: 
+      context: ./broker
+    ports:
+      - "5554:5554"
+    networks:
+      - redis-net
+    depends_on:
+      - redis
+  api:
+    container_name: api
+    build: 
+      context: ./api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - broker
+  redis:
+    image: redis:4.0.5-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    hostname: redis
+    networks:
+      - redis-net
+    volumes:
+      - redis-data:/data
+
+networks:
+  redis-net:
+
+volumes:
+  redis-data:
+    
+        
+        

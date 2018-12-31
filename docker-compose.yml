@@ -1,11 +1,16 @@
 version: '3'
 services:
   registry:
+    restart: always
     container_name: registry
     image: registry:2
     ports:
-      - "5000:5000"
+      - "5000:5000"  
+    volumes:
+      - /docker/registry/data:/var/lib/registry
+      - /socketpath/docker.sock:/var/run/docker.sock
   broker:
+    restart: always
     container_name: broker
     build: 
       context: ./broker
@@ -16,14 +21,20 @@ services:
     depends_on:
       - redis
   api:
+    restart: always
     container_name: api
     build: 
       context: ./api
     ports:
       - "3000:3000"
+    volumes:      
+      - /socketpath/docker.sock:/var/run/docker.sock
+      - /uploads:/usr/src/app/dist/uploads/
     depends_on:
+      - registry
       - broker
   redis:
+    restart: always
     image: redis:4.0.5-alpine
     command: ["redis-server", "--appendonly", "yes"]
     hostname: redis

@@ -12,6 +12,10 @@ const COLLECTION_NAME = "functions";
 const UPLOAD_PATH = "uploads";
 const upload = multer({ dest: `${UPLOAD_PATH}/`, fileFilter: functionFilter });
 const db = new Loki(`${UPLOAD_PATH}/${DB_NAME}`, { persistenceMethod: "fs" });
+var Docker = require('dockerode');
+
+var docker = new Docker({socketPath: '/var/run/docker.sock'});
+var docker2 = new Docker({protocol:'http', host: 'registry', port: 5000,   version: 'v1.39'});
 
 var routerPort = process.env.ROUTERPORT || 5554;
 var zmq = require("zeromq");
@@ -47,7 +51,13 @@ app.post("/register", upload.single("function"), async (req, res) => {
   try {
     const col = await loadCollection(COLLECTION_NAME, db);
     const data = col.insert(req.file);
+    console.log('building image for '+req.file.filename)
 
+    docker.buildImage('./worker/worker.tar', {t: req.file.filename}, function (err, response) {
+      console.log(err);
+      console.log(response);
+      //...
+    }).catch(err => console.log(err));
     db.saveDatabase();
     res.send({
       id: data.$loki,

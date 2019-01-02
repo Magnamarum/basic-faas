@@ -54,10 +54,11 @@ app.post("/register", upload.single("function"), async (req, res) => {
     console.log('building image for '+req.file.filename)
 
     docker.buildImage('./worker/worker.tar', {t: req.file.filename}, function (err, response) {
-      console.log(err);
-      console.log(response);
+      if(err)
+        console.log(err);
+      //console.log(response);
       //...
-    }).catch(err => console.log(err));
+    });
     db.saveDatabase();
     res.send({
       id: data.$loki,

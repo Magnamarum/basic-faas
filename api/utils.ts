@@ -3,7 +3,7 @@ import { Collection } from 'lokijs';
 
 const functionFilter = function (req, file, cb) {
     // accept image only
-    if (!file.originalname.match(/\.(zip|ts|js)$/)) {
+    if (!file.originalname.match(/\.(tar|ts|js)$/)) {
         return cb(new Error('Only image files are allowed!'), false);
     }
     cb(null, true);

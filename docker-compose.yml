@@ -28,7 +28,7 @@ services:
       - "3000:3000"
     volumes:      
       - /var/run/docker.sock:/var/run/docker.sock
-      - /uploads:/usr/src/app/dist/uploads/
+      - uploads:/usr/src/app/dist/uploads/
     depends_on:
       - registry
       - broker
@@ -47,6 +47,7 @@ networks:
 
 volumes:
   redis-data:
+  uploads:
     
         
         

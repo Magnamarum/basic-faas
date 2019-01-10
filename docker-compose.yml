@@ -13,6 +13,9 @@ services:
     container_name: broker
     build: 
       context: ./broker
+    environment:
+      - ZMQ_BIND_ADDRESS=tcp://*:5554
+      - REDIS_ADDRESS=redis://redis:6379
     ports:
       - "5554:5554"
     networks:
@@ -21,9 +24,13 @@ services:
       - redis
   api:
     restart: always
-    container_name: api
+    container_name: api    
+    networks:
+      - redis-net
     build: 
       context: ./api
+    environment:
+      - ZMQ_BROKER_ADDRESS=tcp://broker:5554
     ports:
       - "3000:3000"
     volumes:      

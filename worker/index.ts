@@ -1,12 +1,15 @@
 var routerPort = process.env.ROUTERPORT || 5554;
 var zmq = require("zeromq");
 var router = zmq.socket("router");
+router.on('error', function(err) {
+  console.log("SOCKET ERROR", err);
+});
 var identity = process.argv[2];
 var functionName = process.argv[3];
 const func = require("./"+functionName);
 router.identity = identity;
+router.on('connect', () => {console.log('Connected!')}); 
 router.connect("tcp://broker:5554");
-console.log("api listening on " + routerPort);
 
 router.on("message", function() {
   var argl = arguments.length,

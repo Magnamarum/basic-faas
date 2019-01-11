@@ -19,19 +19,20 @@ services:
     ports:
       - "5554:5554"
     networks:
-      - redis-net
+      - faas-net
     depends_on:
       - redis
   api:
     restart: always
     container_name: api    
     networks:
-      - redis-net
+      - faas-net
     build: 
       context: ./api
     environment:
       - ZMQ_BROKER_ADDRESS=tcp://broker:5554
       - BrokerIP=192.168.1.180
+      - BrokerIdentity=MessageBroker
     ports:
       - "3000:3000"
     volumes:      
@@ -46,12 +47,14 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     hostname: redis
     networks:
-      - redis-net
+      - faas-net
     volumes:
       - redis-data:/data
 
+
+
 networks:
-  redis-net:
+  faas-net:
 
 volumes:
   redis-data:

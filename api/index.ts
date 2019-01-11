@@ -17,12 +17,7 @@ const db = new Loki(`${UPLOAD_PATH}/${DB_NAME}`, { persistenceMethod: "fs" });
 var Docker = require("dockerode");
 const dns = require('dns');
 var docker = new Docker({ socketPath: "/var/run/docker.sock" });
-var docker2 = new Docker({
-  protocol: "http",
-  host: "registry",
-  port: 5000,
-  version: "v1.39"
-});
+//var docker = Docker({host: 'http://docker', port: 2375});
 docker.listContainers(function (err, containers) {
   if (containers)
     containers.forEach(function (containerInfo) {
@@ -32,44 +27,17 @@ docker.listContainers(function (err, containers) {
 
 // const bindAddress = process.env.ZMQ_BIND_ADDRESS || `tcp://*:5554`;
 const brokerAddres = process.env.ZMQ_BROKER_ADDRESS || "tcp://127.0.0.1:5554";
+
+let brokerIdentity = process.env.BrokerIdentity || "MessageBroker";
 let brokerIp = process.env.BrokerIP || "localhost";
 var zmq = require("zeromq");
 var router = zmq.socket("router");
 router.identity = "api";
-// var req = zmq.socket("req");
-// req.on('error', function (err) {
-//   console.log("SOCKET ERROR", err);
-// });
-// req.on('connect', () => {
 
-//   console.log('Connected!');
-
-//   console.log('Sending hello to broker');
-//   req.send([
-//     "MessageBroker",
-//     "",
-//     "Hola"
-//   ]);
-// });
-// req.connect(brokerAddres);
-
-// console.log("routersocket listening on " + bindAddress);
-// router.bindSync(bindAddress);
 router.on("error", function (err) {
   console.log("SOCKET ERROR", err);
 });
 
-// router.on('connect', () => {
-//   // Successfully connected
-//   console.log('Connected!');
-
-//   console.log('Sending hello to broker');
-//   router.send([
-//     "MessageBroker",
-//     "",
-//     "Hola"
-//   ]);
-// });
 
 setTimeout(() => {
   console.log("connecting " + brokerAddres);
@@ -81,7 +49,7 @@ setTimeout(() => {
       body: { id: "Hola" }
     };
     console.log("Sending hello to broker");
-    router.send(["MessageBroker", "", JSON.stringify(payload)]);
+    router.send([brokerIdentity, "", JSON.stringify(payload)]);
   }, 2000);
 }, 2000);
 
@@ -156,7 +124,7 @@ function buildImage(path: string, tag: string) {
               "registry/" + tag,
               ["bash"],
               process.stdout,
-              { name: tag + "_01", Tty: false, env: ['BrokerIP=' + brokerIp] },
+              { name: tag + "_01", Tty: false, env: ['BrokerIP=' + brokerIp, 'BrokerIdentity='+brokerIdentity] },
               function (err, data, container) {
                 if (err) {
                   console.log(err);

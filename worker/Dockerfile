@@ -3,11 +3,11 @@ FROM node
 WORKDIR /usr/src/app
 
 COPY package*.json ./
-COPY index.ts ./
-
-
 
 RUN npm install
+
+COPY index.ts ./
+
 EXPOSE 5554
 
 #CMD ["npm", "start"]

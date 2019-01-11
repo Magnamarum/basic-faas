@@ -8,9 +8,18 @@ var identity = process.argv[2];
 var functionName = process.argv[3];
 const func = require("./"+functionName);
 router.identity = identity;
-router.on('connect', () => {console.log('Connected!')}); 
+
 let brokerAddres = process.env.BrokerIP || "localhost";
+let brokerIdentity = process.env.BrokerIdentity || "MessageBroker";
 router.connect("tcp://"+brokerAddres+":5554");
+setTimeout(() => {
+  var payload = {
+    type: "RequestJob",
+    body: { id: "Hola" }
+  };
+  console.log("Sending hello to broker");
+  router.send([brokerIdentity, "", JSON.stringify(payload)]);
+}, 2000);
 
 router.on("message", function() {
   var argl = arguments.length,

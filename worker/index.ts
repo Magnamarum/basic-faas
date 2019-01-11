@@ -9,7 +9,8 @@ var functionName = process.argv[3];
 const func = require("./"+functionName);
 router.identity = identity;
 router.on('connect', () => {console.log('Connected!')}); 
-router.connect("tcp://broker:5554");
+let brokerAddres = process.env.BrokerIP || "localhost";
+router.connect("tcp://"+brokerAddres+":5554");
 
 router.on("message", function() {
   var argl = arguments.length,

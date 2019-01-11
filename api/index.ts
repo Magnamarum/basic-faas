@@ -15,7 +15,7 @@ const UPLOAD_PATH = "uploads";
 const upload = multer({ dest: `${UPLOAD_PATH}/`, fileFilter: functionFilter });
 const db = new Loki(`${UPLOAD_PATH}/${DB_NAME}`, { persistenceMethod: "fs" });
 var Docker = require("dockerode");
-
+const dns = require('dns');
 var docker = new Docker({ socketPath: "/var/run/docker.sock" });
 var docker2 = new Docker({
   protocol: "http",
@@ -23,16 +23,16 @@ var docker2 = new Docker({
   port: 5000,
   version: "v1.39"
 });
-docker.listContainers(function(err, containers) {
+docker.listContainers(function (err, containers) {
   if (containers)
-    containers.forEach(function(containerInfo) {
+    containers.forEach(function (containerInfo) {
       if (containerInfo.Image.includes("registry/")) console.log(containerInfo);
     });
 });
 
 // const bindAddress = process.env.ZMQ_BIND_ADDRESS || `tcp://*:5554`;
 const brokerAddres = process.env.ZMQ_BROKER_ADDRESS || "tcp://127.0.0.1:5554";
-
+let brokerIp = process.env.BrokerIP || "localhost";
 var zmq = require("zeromq");
 var router = zmq.socket("router");
 router.identity = "api";
@@ -55,7 +55,7 @@ router.identity = "api";
 
 // console.log("routersocket listening on " + bindAddress);
 // router.bindSync(bindAddress);
-router.on("error", function(err) {
+router.on("error", function (err) {
   console.log("SOCKET ERROR", err);
 });
 
@@ -78,14 +78,14 @@ setTimeout(() => {
   setTimeout(() => {
     var payload = {
       type: "RequestJob",
-      body: { id: "Hola"}
+      body: { id: "Hola" }
     };
     console.log("Sending hello to broker");
     router.send(["MessageBroker", "", JSON.stringify(payload)]);
   }, 2000);
 }, 2000);
 
-router.on("message", function() {
+router.on("message", function () {
   var argl = arguments.length,
     envelopes = Array.prototype.slice.call(arguments, 0, argl - 1),
     message = JSON.parse(
@@ -123,14 +123,14 @@ app.use(cors());
 function buildImage(path: string, tag: string) {
   console.log("building image for " + tag);
 
-  docker.buildImage(path, { t: "registry/" + tag }, function(err, output) {
+  docker.buildImage(path, { t: "registry/" + tag }, function (err, output) {
     if (err) {
       console.log(err);
       return;
     }
 
     output.pipe(process.stdout);
-    output.on("end", function() {
+    output.on("end", function () {
       //console.log(response);
       console.log("built image for " + tag);
       const image = docker.getImage("registry/" + tag);
@@ -156,15 +156,15 @@ function buildImage(path: string, tag: string) {
               "registry/" + tag,
               ["bash"],
               process.stdout,
-              { createOptions: { name: tag + "_01" } },
-              function(err, data, container) {
+              { name: tag + "_01", Tty: false, env: ['BrokerIP=' + brokerIp] },
+              function (err, data, container) {
                 if (err) {
                   console.log(err);
                   return;
                 }
                 console.log("listing containers");
-                docker.listContainers(function(err, containers) {
-                  containers.forEach(function(containerInfo) {
+                docker.listContainers(function (err, containers) {
+                  containers.forEach(function (containerInfo) {
                     if (containerInfo.Image == "registry/" + tag)
                       console.log(containerInfo);
                   });
@@ -186,7 +186,7 @@ function buildImage2(path: string, tag: string) {
       src: ["Dockerfile"]
     },
     { t: tag },
-    function(err, response) {
+    function (err, response) {
       if (err) console.log(err);
       else console.log(response);
     }
@@ -231,7 +231,7 @@ app.post("/register", upload.single("function"), async (req, res) => {
       '_01","job/' +
       mainName +
       '"]';
-    fs.writeFile(outDir + "Dockerfile", dockerFile, function(err) {
+    fs.writeFile(outDir + "Dockerfile", dockerFile, function (err) {
       if (err) {
         return console.log(err);
       }
@@ -285,6 +285,6 @@ app.post("/invoke/:id", async (req, res) => {
   res.sendStatus(200);
 });
 
-app.listen(3000, function() {
+app.listen(3000, function () {
   console.log("api listening on port 3000!");
 });

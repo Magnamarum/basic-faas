@@ -9,7 +9,7 @@ var functionName = process.argv[3];
 const func = require("./"+functionName);
 router.identity = identity;
 
-let brokerAddres = process.env.BrokerIP || "localhost";
+let brokerAddres = process.env.brokerIp || "localhost";
 let brokerIdentity = process.env.BrokerIdentity || "MessageBroker";
 router.connect("tcp://"+brokerAddres+":5554");
 setTimeout(() => {

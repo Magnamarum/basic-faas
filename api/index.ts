@@ -8,6 +8,7 @@ import * as Loki from "lokijs";
 const { exec } = require("child_process");
 import { functionFilter, loadCollection, cleanFolder } from "./utils";
 
+
 // setup
 const DB_NAME = "db.json";
 const COLLECTION_NAME = "functions";
@@ -150,20 +151,7 @@ function buildImage(path: string, tag: string) {
   });
 }
 
-function buildImage2(path: string, tag: string) {
-  console.log("building image for " + tag);
-  docker.buildImage(
-    {
-      context: path,
-      src: ["Dockerfile"]
-    },
-    { t: tag },
-    function (err, response) {
-      if (err) console.log(err);
-      else console.log(response);
-    }
-  );
-}
+
 app.post("/register", upload.single("function"), async (req, res) => {
   try {
     const col = await loadCollection(COLLECTION_NAME, db);
@@ -198,6 +186,7 @@ app.post("/register", upload.single("function"), async (req, res) => {
     }
     dockerFile +=
       "EXPOSE 5554\n" +
+      'ENV BrokerIP='+brokerIp+'\n'
       'CMD ["npm", "start","' +
       req.file.filename +
       '_01","job/' +
@@ -253,7 +242,7 @@ app.post("/register", upload.single("function"), async (req, res) => {
 
 app.post("/invoke/:id", async (req, res) => {
   //todo: add db inicio ejecución
-  router.send(["MessageBroker", "", { type: req.params.id, body: req.body }]);
+  router.send([brokerIdentity, "", { type: req.params.id, body: req.body }]);
   res.sendStatus(200);
 });
 

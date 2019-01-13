@@ -1,11 +1,11 @@
 {
   "name": "worker",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
     "prestart": "tsc",
-    "start": "node index.ts"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "zeromq": "^5.1.0"

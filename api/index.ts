@@ -120,12 +120,16 @@ function buildImage(path: string, tag: string) {
             //   }
             //   container.start();
             // })
+            console.log('running image '+tag);
             docker.run(
               "registry/" + tag,
               ["bash"],
               process.stdout,
-              { name: tag + "_01", Tty: false, env: ['BrokerIP=' + brokerIp, 'BrokerIdentity='+brokerIdentity] },
+              //{ name: tag + "_01", Tty: false, env: ['BrokerIP=' + brokerIp, 'BrokerIdentity='+brokerIdentity] },
+
+              { createOptions: { name: tag + "_01" } },
               function (err, data, container) {
+                console.log(container);
                 if (err) {
                   console.log(err);
                   return;

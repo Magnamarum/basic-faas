@@ -254,11 +254,7 @@ app.post("/register", upload.single("function"), async (req, res) => {
 
                     buildImage(path, req.file.filename, mainName);
                     db.saveDatabase();
-                    res.send({
-                      id: data.$loki,
-                      fileName: data.filename,
-                      originalName: data.originalname
-                    });
+                    res.send( data.filename);
                   }
                 );
               }
@@ -306,11 +302,7 @@ app.post("/register", upload.single("function"), async (req, res) => {
 
                 buildImage(path, req.file.filename, mainName);
                 db.saveDatabase();
-                res.send({
-                  id: data.$loki,
-                  fileName: data.filename,
-                  originalName: data.originalname
-                });
+                res.send( data.filename);
               }
             );
           }

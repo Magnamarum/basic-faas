@@ -7,7 +7,18 @@ import * as path from "path";
 import * as Loki from "lokijs";
 const { exec } = require("child_process");
 import { functionFilter, loadCollection, cleanFolder } from "./utils";
+const redis = require('redis');
+const redisClient = redis.createClient(6379, "redis");
 
+const uuidV1 = require('uuid/v1');
+
+redisClient.on('connect', function () {
+  console.log('Redis client connected');
+});
+
+redisClient.on('error', function (err) {
+  console.log('Something went wrong ' + err);
+});
 
 // setup
 const DB_NAME = "db.json";
@@ -22,7 +33,7 @@ var docker = new Docker({ socketPath: "/var/run/docker.sock" });
 docker.listContainers(function (err, containers) {
   if (containers)
     containers.forEach(function (containerInfo) {
-      if (containerInfo.Image.includes("registry/")) console.log(containerInfo);
+      if (containerInfo.Image.includes("registry/")) console.log(containerInfo.Id);
     });
 });
 
@@ -33,7 +44,7 @@ let brokerIdentity = process.env.BrokerIdentity || "MessageBroker";
 let brokerIp = process.env.BrokerIP || "localhost";
 var zmq = require("zeromq");
 var router = zmq.socket("router");
-router.identity = "api";
+router.identity = process.env.ApiIdentity || "api";
 
 router.on("error", function (err) {
   console.log("SOCKET ERROR", err);
@@ -43,30 +54,38 @@ router.on("error", function (err) {
 setTimeout(() => {
   console.log("connecting " + brokerAddres);
   router.connect(brokerAddres);
-
-  setTimeout(() => {
-    var payload = {
-      type: "RequestJob",
-      body: { id: "Hola" }
-    };
-    console.log("Sending hello to broker");
-    router.send([brokerIdentity, "", JSON.stringify(payload)]);
-  }, 2000);
 }, 2000);
 
 router.on("message", function () {
+  console.log(arguments);
   var argl = arguments.length,
-    envelopes = Array.prototype.slice.call(arguments, 0, argl - 1),
-    message = JSON.parse(
-      Array.prototype.slice.call(arguments, 2, argl - 1).toString("utf8")
-    ),
-    payload = arguments[argl - 1];
-  console.log(message);
-  //add db fin ejecución
+    requesterIdentity = arguments[0].toString("utf8"),
+    payload = JSON.parse(arguments[argl - 1].toString("utf8"));
+  console.log("Received message from " + requesterIdentity);
+  console.log("with body: ");
+  console.log(payload);
+  redisClient.get(payload.uid, function (error, result) {
+    if (error) {
+      console.log(error);
+      throw error;
+    }
+    console.log('GET result ->' + result);
 
-  router.send(["MessageBroker", "", JSON.stringify(payload)]);
-  console.log(envelopes.toString("utf8"));
-  console.log("incoming request: " + payload.toString("utf8"));
+    let resultJson = JSON.parse(result);
+    let now = Date.now();
+    let elapsedTime = now - resultJson.start;
+
+    let value = {
+      start: resultJson.start,
+      body: resultJson.body,
+      end: now,
+      response: payload,
+      elapsedTime: elapsedTime
+    }
+    console.log(elapsedTime+ ' ms');
+    redisClient.set(payload.uid, JSON.stringify(value), redis.print);
+
+  });
 });
 
 // optional: clean all data before start
@@ -87,9 +106,12 @@ function copyFile(src, dest) {
 // app
 var bodyParser = require("body-parser");
 const app = express();
+
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.json());;
 app.use(cors());
 //app.use(bodyParser)
-function buildImage(path: string, tag: string) {
+function buildImage(path: string, tag: string, mainName: string) {
   console.log("building image for " + tag);
 
   docker.buildImage(path, { t: "registry/" + tag }, function (err, output) {
@@ -121,10 +143,10 @@ function buildImage(path: string, tag: string) {
             //   }
             //   container.start();
             // })
-            console.log('running image '+tag);
+            console.log('running image ' + tag);
             docker.run(
               "registry/" + tag,
-              ["bash"],
+              ["npm", "start", tag + '_01', 'job/' + mainName, tag],
               process.stdout,
               //{ name: tag + "_01", Tty: false, env: ['BrokerIP=' + brokerIp, 'BrokerIdentity='+brokerIdentity] },
 
@@ -136,14 +158,31 @@ function buildImage(path: string, tag: string) {
                   return;
                 }
                 console.log("listing containers");
-                docker.listContainers(function (err, containers) {
-                  containers.forEach(function (containerInfo) {
-                    if (containerInfo.Image == "registry/" + tag)
-                      console.log(containerInfo);
-                  });
-                });
+
               }
             );
+
+            docker.listContainers(function (err, containers) {
+              containers.forEach(function (container) {
+                if (container.Image == "registry/" + tag)
+                  docker.listNetworks(function (err, networks) {
+                    if (err) {
+                      console.log(err);
+                    }
+                    else {
+                      networks.forEach(function (network) {
+                        network.connect({
+                          Container: container.id
+                        }, function (err, data) {
+                          console.log(data);
+                        });
+                      })
+                    }
+                  });
+              });
+            });
+
+
           }
         }
       );
@@ -162,6 +201,7 @@ app.post("/register", upload.single("function"), async (req, res) => {
     let outDir = "./uploads/" + req.file.filename + "_data/";
     fs.mkdirSync(outDir);
     if (req.file.originalname.match(/\.(tar)$/)) {
+      console.log('Recibido .tar');
       exec(
         "tar -xvf  " + req.file.path + " -C " + outDir,
         (err, stdout, stderr) => {
@@ -174,76 +214,147 @@ app.post("/register", upload.single("function"), async (req, res) => {
           var packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
           mainName = packageJson.main;
           console.log(mainName);
-
-          dockerFile += "COPY " + outDir + " ./job";
+          dockerFile += "RUN ls -la\n"
+          dockerFile += "COPY " + req.file.filename + "/ ./job/\n";
 
           dockerFile += "RUN cd job && npm install && cd ..\n";
+          dockerFile +=
+            "EXPOSE 5554\n" +
+            'ENV BrokerIP=' + brokerIp + '\n' +
+            'CMD ["npm", "start","' +
+            req.file.filename +
+            '_01","job/' +
+            mainName +
+            '", "' + req.file.filename + '"]';
+          console.log(dockerFile);
+
+          fs.writeFile(outDir + "Dockerfile", dockerFile, function (err) {
+            if (err) {
+              return console.log(err);
+            }
+
+            var path = req.file.filename + ".tar";
+            exec(
+              "tar -cvf  " + path + " -C " + outDir + " Dockerfile",
+              (err, stdout, stderr) => {
+                if (err) {
+                  // node couldn't execute the command
+                  console.log(err);
+                  return;
+                }
+
+                exec(
+                  "tar -rvf  " + path + " -C ./uploads/ " + req.file.filename,
+                  (err, stdout, stderr) => {
+                    if (err) {
+                      // node couldn't execute the command
+                      console.log(err);
+                      return;
+                    }
+
+                    buildImage(path, req.file.filename, mainName);
+                    db.saveDatabase();
+                    res.send({
+                      id: data.$loki,
+                      fileName: data.filename,
+                      originalName: data.originalname
+                    });
+                  }
+                );
+              }
+            );
+
+          });
         }
       );
     } else {
       mainName = req.file.filename;
-      dockerFile += "COPY " + req.file.filename + " ./job\n";
-    }
-    dockerFile +=
-      "EXPOSE 5554\n" +
-      'ENV BrokerIP='+brokerIp+'\n'
-      'CMD ["npm", "start","' +
-      req.file.filename +
-      '_01","job/' +
-      mainName +
-      '"]';
-    fs.writeFile(outDir + "Dockerfile", dockerFile, function (err) {
-      if (err) {
-        return console.log(err);
-      }
+      dockerFile += "COPY " + req.file.filename + " ./job/\n";
+      dockerFile +=
+        "EXPOSE 5554\n" +
+        'ENV BrokerIP=' + brokerIp + '\n' +
+        'CMD ["npm", "start","' +
+        req.file.filename +
+        '_01","job/' +
+        mainName +
+        '", "' + req.file.filename + '"]';
+      console.log(dockerFile);
 
-      var path = req.file.filename + ".tar";
-      exec(
-        "tar -cvf  " + path + " -C " + outDir + " Dockerfile",
-        (err, stdout, stderr) => {
-          if (err) {
-            // node couldn't execute the command
-            console.log(err);
-            return;
-          }
-
-          exec(
-            "tar -rvf  " + path + " -C ./uploads/ " + req.file.filename,
-            (err, stdout, stderr) => {
-              if (err) {
-                // node couldn't execute the command
-                console.log(err);
-                return;
-              }
-
-              buildImage(path, req.file.filename);
-            }
-          );
+      fs.writeFile(outDir + "Dockerfile", dockerFile, function (err) {
+        if (err) {
+          return console.log(err);
         }
-      );
 
-      //buildImage2(outDir, req.file.filename);
+        var path = req.file.filename + ".tar";
+        exec(
+          "tar -cvf  " + path + " -C " + outDir + " Dockerfile",
+          (err, stdout, stderr) => {
+            if (err) {
+              // node couldn't execute the command
+              console.log(err);
+              return;
+            }
 
-      // compressing.gzip.compressFile(outDir + 'Dockerfile', path)
-      //   .then(buildImage(path, req.file.filename));
-    });
+            exec(
+              "tar -rvf  " + path + " -C ./uploads/ " + req.file.filename,
+              (err, stdout, stderr) => {
+                if (err) {
+                  // node couldn't execute the command
+                  console.log(err);
+                  return;
+                }
 
-    db.saveDatabase();
-    res.send({
-      id: data.$loki,
-      fileName: data.filename,
-      originalName: data.originalname
-    });
+                buildImage(path, req.file.filename, mainName);
+                db.saveDatabase();
+                res.send({
+                  id: data.$loki,
+                  fileName: data.filename,
+                  originalName: data.originalname
+                });
+              }
+            );
+          }
+        );
+
+      });
+    }
+
+
   } catch (err) {
     console.log(err);
     res.sendStatus(400);
   }
 });
-
+app.get('/status/:id', async (req, res) => {
+  let id = req.params.id;
+  redisClient.get(id, function (error, result) {
+    if (error) {
+      console.log(error);
+      throw error;
+    }
+    res.send(result);
+  });
+});
 app.post("/invoke/:id", async (req, res) => {
   //todo: add db inicio ejecución
-  router.send([brokerIdentity, "", { type: req.params.id, body: req.body }]);
-  res.sendStatus(200);
+  console.log('Invocando ' + req.params.id + ' con body:');
+  let id = uuidV1();
+  let value = {
+    start: Date.now(),
+    body: req.body
+  }
+  redisClient.set(id, JSON.stringify(value), redis.print);
+  redisClient.get(id, function (error, result) {
+    if (error) {
+      console.log(error);
+      throw error;
+    }
+    console.log('GET result ->' + result);
+  });
+  //console.log(req);
+  console.log(req.body);
+  router.send([brokerIdentity, "", JSON.stringify({ type: req.params.id, body: req.body, uid: id })]);
+  res.send(id);
 });
 
 app.listen(3000, function () {

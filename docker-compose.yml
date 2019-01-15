@@ -16,6 +16,7 @@ services:
     environment:
       - ZMQ_BIND_ADDRESS=tcp://*:5554
       - REDIS_ADDRESS=redis://redis:6379
+      - ApiIdentity=api
     ports:
       - "5554:5554"
     networks:
@@ -31,7 +32,9 @@ services:
       context: ./api
     environment:
       - ZMQ_BROKER_ADDRESS=tcp://broker:5554
-      - BrokerIP=192.168.1.180
+#      - BrokerIP=broker
+      - ApiIdentity=api
+      - BrokerIP=192.168.1.128
       - BrokerIdentity=MessageBroker
     ports:
       - "3000:3000"
@@ -44,12 +47,19 @@ services:
   redis:
     restart: always
     image: redis:4.0.5-alpine
+    container_name: redis
     command: ["redis-server", "--appendonly", "yes"]
     hostname: redis
     networks:
       - faas-net
     volumes:
       - redis-data:/data
+  worker:
+    image: worker
+    build: 
+      context: ./worker
+    environment:
+      - BrokerIP=192.168.1.128
 
 
 

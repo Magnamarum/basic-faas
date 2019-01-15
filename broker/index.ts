@@ -16,6 +16,7 @@ router.on("error", function (err) {
 router.identity = "MessageBroker";
 
 const redisAddress = process.env.REDIS_ADDRESS || "redis://localhost:6379";
+const apiIdentity = process.env.ApiIdentity || "api";
 var kue = require("kue"),
   queue = kue.createQueue({ redis: redisAddress });
 
@@ -23,6 +24,8 @@ const bindAddress = process.env.ZMQ_BIND_ADDRESS || `tcp://*:5554`;
 router.bindSync(bindAddress);
 
 function processJob(type, payload, done) {
+  console.log('processing job of type '+type+ ' with payload '+payload );
+
   let workersToProcess = workersByType[type];
   let worker = workersToProcess.shift();
   router.send([worker, "", payload]);
@@ -50,15 +53,22 @@ router.on("message", function () {
     //   if (total > 0) {
     var workers = workersByType[payload.body.id];
     if (workers) {
+      console.log('Encolando worker '+requesterIdentity);
       workers.push(requesterIdentity);
     }
     else {
+      
+      console.log('Encolando worker '+requesterIdentity);
       workersByType[payload.body.id] = [requesterIdentity];
+      console.log('Procesando cola '+payload.body.id);      
       queue.process(payload.body.id, function (job, done) {
         console.log(
           "Processing job " + payload.body.id + " with data " + job.data
         );
-        if (!workersByType[payload.body.id].some()) { // si no hay workers disponibles
+        console.log(workersByType);
+        console.log(workersByType[payload.body.id]);
+        if (!workersByType[payload.body.id]) { // si no hay workers disponibles
+          console.log('No workers of '+payload.body.id+' available')
           workerEmitter.once(payload.body.id, processJob(payload.body.id, job.data, done));
         } else {
           processJob(payload.body.id, job.data, done);
@@ -69,8 +79,16 @@ router.on("message", function () {
 
     // }
     // });
-  } else {
-    queue.create(payload.body.id, JSON.stringify(payload.body)).save();
+  } 
+  else if(payload.type == 'Response'){
+    
+    console.log('Received response to job '+payload.uid+' of type '+payload.type+' and body '+JSON.stringify(payload.body));
+    
+  router.send([apiIdentity, "", JSON.stringify(payload)]);
+  }
+  else {
+    console.log('Queueing job of type '+payload.type+' and body '+payload.body);
+    queue.create(payload.type, JSON.stringify(payload)).save();
   }
 
 });

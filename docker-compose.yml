@@ -38,6 +38,7 @@ services:
       - BrokerIdentity=MessageBroker
     ports:
       - "3000:3000"
+      - "4000:4000"
     volumes:      
       - /var/run/docker.sock:/var/run/docker.sock
       - uploads:/usr/src/app/dist/uploads/
@@ -54,6 +55,17 @@ services:
       - faas-net
     volumes:
       - redis-data:/data
+  socketio:
+    restart: always
+    container_name: socketio    
+    networks:
+      - faas-net
+    build: 
+      context: ./socket.io
+    environment:
+      - HOST=api
+    depends_on:
+      - api
   worker:
     image: worker
     build: 
@@ -61,14 +73,9 @@ services:
     environment:
       - BrokerIP=192.168.1.128
 
-
-
 networks:
   faas-net:
 
 volumes:
   redis-data:
-  uploads:
-    
-        
-        
+  uploads:        

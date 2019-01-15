@@ -45,6 +45,13 @@ let brokerIp = process.env.BrokerIP || "localhost";
 var zmq = require("zeromq");
 var router = zmq.socket("router");
 router.identity = process.env.ApiIdentity || "api";
+// app
+var bodyParser = require("body-parser");
+const app = express();
+
+
+var io = require('socket.io').listen(4000);
+
 
 router.on("error", function (err) {
   console.log("SOCKET ERROR", err);
@@ -83,7 +90,9 @@ router.on("message", function () {
       elapsedTime: elapsedTime
     }
     console.log(elapsedTime+ ' ms');
-    redisClient.set(payload.uid, JSON.stringify(value), redis.print);
+    let valueString = JSON.stringify(value);
+    redisClient.set(payload.uid, valueString, redis.print);
+    io.emit('jobfinished', valueString);
 
   });
 });
@@ -103,9 +112,6 @@ function copyFile(src, dest) {
 
   readStream.pipe(fs.createWriteStream(dest));
 }
-// app
-var bodyParser = require("body-parser");
-const app = express();
 
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json());;
